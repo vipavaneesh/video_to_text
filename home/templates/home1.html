@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Video Stream</title>
+</head>
+<body>
+    <video id="video" autoplay style="display:none;"></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const socket = new WebSocket('ws://localhost:8000/ws/video/');
+
+        // Access the webcam
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+
+                // Start capturing frames
+                const captureFrames = () => {
+                    // Set canvas dimensions to match video
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+
+                    // Draw the current video frame to the canvas
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    // Convert the canvas to a Blob (image data)
+                    canvas.toBlob(blob => {
+                        if (blob) {
+                            socket.send(blob); // Send the frame over WebSocket
+                        }
+                    }, 'image/jpeg', 0.8); // Adjust quality as needed
+
+                    requestAnimationFrame(captureFrames); // Capture the next frame
+                };
+
+                captureFrames(); // Start capturing frames
+            })
+            .catch(error => {
+                console.error("Error accessing webcam:", error);
+            });
+
+        socket.onopen = () => {
+            console.log("WebSocket connection established");
+        };
+
+        socket.onmessage = (event) => {
+            console.log("Message from server:", event.data);
+        };
+
+        socket.onclose = () => {
+            console.log("WebSocket connection closed");
+        };
+    </script>
+</body>
+</html>
