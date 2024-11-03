@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Video Stream</title>
+    <style>
+        video {
+            width: 640px;
+            height: 480px;
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <video id="videoElement" autoplay playsinline></video>
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        const socket = new WebSocket('ws://localhost:8001/ws/video/'); // Replace with your server URL
+
+        // Access the webcam
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+
+                // Wait for the video metadata to be loaded
+                video.addEventListener('loadedmetadata', () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    startStreaming();
+                });
+            })
+            .catch(error => {
+                console.error('Error accessing webcam:', error);
+            });
+
+        {% comment %} function startStreaming() {
+            // Send frames at a regular interval
+            setInterval(() => {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data; // This is a Uint8ClampedArray
+
+                // Send the pixel data as an ArrayBuffer
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(data.buffer);
+                }
+            }, 100); // Adjust the interval as needed (100ms = 10 FPS)
+        } {% endcomment %}
+
+        function startStreaming() {
+            // Send frames at a regular interval
+            setInterval(() => {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Convert the canvas to a JPEG image
+                const imageData = canvas.toDataURL('image/jpeg'); // Get base64 encoded JPEG image
+                const byteString = atob(imageData.split(',')[1]); // Decode base64
+                const arrayBuffer = new Uint8Array(byteString.length); // Create a byte array
+        
+                for (let i = 0; i < byteString.length; i++) {
+                    arrayBuffer[i] = byteString.charCodeAt(i); // Fill the byte array
+                }
+        
+                // Send the byte array as an ArrayBuffer
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(arrayBuffer.buffer);
+                }
+            }, 100); // Adjust the interval as needed (100ms = 10 FPS)
+        }        
+
+        socket.onopen = () => {
+            console.log('WebSocket connection established');
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket connection closed');
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    </script>
+</body>
+</html>
